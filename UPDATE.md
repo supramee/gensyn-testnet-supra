@@ -9,7 +9,11 @@ pkill -f "SCREEN.*gensyn"
 ```
 screen -S gensyn
 ```
-### 3. Now use this command to run the `rl-swarm`
+### 3. Delete exisiting temp-data
+```
+[ -n "$(ls "$HOME/rl-swarm/modal-login/temp-data/"*.json 2>/dev/null)" ] && rm -f "$HOME/rl-swarm/modal-login/temp-data/"*.json 2>/dev/null || true
+```
+### 4. Now use this command to run the `rl-swarm`
 ```
 cd $HOME && rm -rf gensyn-testnet && git clone https://github.com/zunxbt/gensyn-testnet.git && chmod +x gensyn-testnet/gensyn.sh && ./gensyn-testnet/gensyn.sh
 ```
@@ -21,5 +25,5 @@ cd $HOME && rm -rf gensyn-testnet && git clone https://github.com/zunxbt/gensyn-
 >[!Note]
 > It will ask this question - ```Would you like to push models you train in the RL swarm to the Hugging Face Hub? [y/N]``` here Write `N` and at last you will see this : ```Your training session is about to begin``` then you can detach from this gensyn screen session
 
-### 4. Detach from this screen session
+### 5. Detach from this screen session
 - Use `Ctrl + A` and then press `D` to detach from this screen session.
