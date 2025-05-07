@@ -9,9 +9,7 @@ BOLD="\033[1m"
 NC="\033[0m"
 
 CPU_ONLY="false"
-REQUIRED_CUDA_VERSION="12.8"
 CUDA_INSTALLED=false
-CUDA_COMPATIBLE=false
 NVCC_PATH=""
 CUDA_PATH=""
 CUDA_VERSION=""
@@ -69,6 +67,7 @@ detect_gpu() {
         DRIVER_VERSION=$(nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | head -1)
         echo -e "${GREEN}${BOLD}[✓] NVIDIA driver version: ${DRIVER_VERSION}${NC}"
         
+        # Get CUDA version directly from nvidia-smi
         DRIVER_CUDA_VERSION=$(nvidia-smi | grep -oP "CUDA Version: \K[0-9.]+" 2>/dev/null)
         if [ -n "$DRIVER_CUDA_VERSION" ]; then
             echo -e "${GREEN}${BOLD}[✓] NVIDIA driver supports CUDA ${DRIVER_CUDA_VERSION}${NC}"
@@ -114,6 +113,7 @@ detect_cuda() {
     NVCC_AVAILABLE=false
     CUDA_INSTALLED=false
     
+    # First check for CUDA in common locations
     for cuda_dir in /usr/local/cuda* /usr/local/cuda; do
         if [ -d "$cuda_dir" ] && [ -d "$cuda_dir/bin" ] && [ -f "$cuda_dir/bin/nvcc" ]; then
             CUDA_PATH=$cuda_dir
@@ -130,6 +130,7 @@ detect_cuda() {
         fi
     done
     
+    # If CUDA wasn't found in standard locations but nvcc is in PATH
     if [ "$CUDA_INSTALLED" = false ] && command -v nvcc &> /dev/null; then
         NVCC_PATH=$(which nvcc)
         CUDA_PATH=$(dirname $(dirname $NVCC_PATH))
@@ -140,9 +141,11 @@ detect_cuda() {
         CUDA_INSTALLED=true
     fi
     
+    # Use CUDA version from nvidia-smi if available
     if command -v nvidia-smi &> /dev/null; then
         DRIVER_CUDA_VERSION=$(nvidia-smi | grep -oP "CUDA Version: \K[0-9.]+" 2>/dev/null)
         if [ -n "$DRIVER_CUDA_VERSION" ]; then
+            # Use driver's CUDA version if we couldn't detect it through nvcc
             if [ -z "$CUDA_VERSION" ]; then
                 CUDA_VERSION=$DRIVER_CUDA_VERSION
             fi
@@ -150,6 +153,7 @@ detect_cuda() {
         fi
     fi
     
+    # Check if environment paths are set up correctly
     if [ "$CUDA_INSTALLED" = true ]; then
         check_cuda_path
     fi
@@ -200,6 +204,7 @@ setup_cuda_env() {
     
     echo -e "${GREEN}${BOLD}[✓] Using CUDA path: ${CUDA_PATH}${NC}"
     
+    # Create systemwide path setup
     cat > /etc/profile.d/cuda.sh <<EOL
 #!/bin/bash
 export PATH=${CUDA_PATH}/bin\${PATH:+:\${PATH}}
@@ -207,9 +212,11 @@ export LD_LIBRARY_PATH=${CUDA_PATH}/lib64\${LD_LIBRARY_PATH:+:\${LD_LIBRARY_PATH
 EOL
     chmod +x /etc/profile.d/cuda.sh
     
+    # Update current session
     export PATH=${CUDA_PATH}/bin${PATH:+:${PATH}}
     export LD_LIBRARY_PATH=${CUDA_PATH}/lib64${LD_LIBRARY_PATH:+:${LD_LIBRARY_PATH}}
     
+    # Add to .bashrc if it's not already there
     if ! grep -q "CUDA_HOME=${CUDA_PATH}" ~/.bashrc 2>/dev/null; then
         echo -e "\n# CUDA Path" >> ~/.bashrc
         echo "export CUDA_HOME=${CUDA_PATH}" >> ~/.bashrc
@@ -217,75 +224,77 @@ EOL
         echo "export LD_LIBRARY_PATH=\$CUDA_HOME/lib64\${LD_LIBRARY_PATH:+:\${LD_LIBRARY_PATH}}" >> ~/.bashrc
     fi
     
+    # Source bashrc to apply changes in current session
     source ~/.bashrc 2>/dev/null || true
     
     echo -e "${GREEN}${BOLD}[✓] CUDA environment variables configured and applied${NC}"
     return 0
 }
 
-check_cuda_compatibility() {
-    echo -e "\n${CYAN}${BOLD}[✓] Checking compatibility for CUDA ${REQUIRED_CUDA_VERSION}...${NC}"
+determine_compatible_cuda() {
+    echo -e "\n${CYAN}${BOLD}[✓] Determining compatible CUDA version...${NC}"
     
-    if [ "$GPU_AVAILABLE" = false ]; then
-        echo -e "${RED}${BOLD}[✗] No NVIDIA GPU detected - CUDA ${REQUIRED_CUDA_VERSION} is not supported${NC}"
-        show_cpu_option
-        return 1
-    fi
+    local compatible_version=""
     
     if command -v nvidia-smi &> /dev/null; then
-        DRIVER_VERSION=$(nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | head -1)
-        if [ -n "$DRIVER_VERSION" ]; then
-            local major_version=$(echo $DRIVER_VERSION | cut -d '.' -f 1)
-            
-            if [ "$major_version" -ge 550 ]; then
-                echo -e "${GREEN}${BOLD}[✓] Driver version ${DRIVER_VERSION} is compatible with CUDA ${REQUIRED_CUDA_VERSION}${NC}"
-                CUDA_COMPATIBLE=true
-                return 0
-            else
-                echo -e "${RED}${BOLD}[✗] Driver version ${DRIVER_VERSION} is NOT compatible with CUDA ${REQUIRED_CUDA_VERSION}${NC}"
-                echo -e "${RED}${BOLD}[✗] CUDA ${REQUIRED_CUDA_VERSION} requires NVIDIA driver version 550 or higher${NC}"
-                show_cpu_option
-                return 1
-            fi
-        else
-            echo -e "${RED}${BOLD}[✗] Could not determine driver version - CUDA ${REQUIRED_CUDA_VERSION} compatibility unknown${NC}"
-            show_cpu_option
-            return 1
+        local driver_version=$(nvidia-smi --query-gpu=driver_version --format=csv,noheader 2>/dev/null | head -1)
+        
+        # First try to get CUDA version directly from nvidia-smi
+        DRIVER_CUDA_VERSION=$(nvidia-smi | grep -oP "CUDA Version: \K[0-9.]+" 2>/dev/null)
+        if [ -n "$DRIVER_CUDA_VERSION" ]; then
+            compatible_version=$DRIVER_CUDA_VERSION
+            echo -e "${GREEN}${BOLD}[✓] Compatible CUDA version detected: ${compatible_version}${NC}"
+            return 0
         fi
-    else
-        echo -e "${RED}${BOLD}[✗] Could not run nvidia-smi - CUDA ${REQUIRED_CUDA_VERSION} compatibility unknown${NC}"
-        show_cpu_option
-        return 1
+        
+        # If direct detection failed, estimate based on driver version
+        if [ -n "$driver_version" ]; then
+            local major_version=$(echo $driver_version | cut -d '.' -f 1)
+            
+            if [ "$major_version" -ge 545 ]; then
+                compatible_version="12.6"
+            elif [ "$major_version" -ge 535 ]; then
+                compatible_version="12.2"
+            elif [ "$major_version" -ge 525 ]; then
+                compatible_version="12.1"
+            elif [ "$major_version" -ge 520 ]; then
+                compatible_version="12.0"
+            elif [ "$major_version" -ge 510 ]; then
+                compatible_version="11.6"
+            elif [ "$major_version" -ge 470 ]; then
+                compatible_version="11.4"
+            elif [ "$major_version" -ge 450 ]; then
+                compatible_version="11.0"
+            elif [ "$major_version" -ge 440 ]; then
+                compatible_version="10.2"
+            elif [ "$major_version" -ge 418 ]; then
+                compatible_version="10.1"
+            elif [ "$major_version" -ge 410 ]; then
+                compatible_version="10.0"
+            else
+                compatible_version="11.4" # Default fallback for older drivers
+            fi
+            
+            echo -e "${GREEN}${BOLD}[✓] Driver version ${driver_version} is compatible with CUDA ${compatible_version}${NC}"
+            return 0
+        fi
     fi
-}
-
-show_cpu_option() {
-    echo -e "\n${YELLOW}${BOLD}[!] CUDA ${REQUIRED_CUDA_VERSION} is not supported on your system${NC}"
-    echo -e "${YELLOW}${BOLD}[!] Would you like to run on CPU instead of GPU? (yes/no)${NC}"
-    read -p "> " choice
     
-    case "$choice" in
-        yes|y|YES|Y )
-            CPU_ONLY="true"
-            echo -e "${GREEN}${BOLD}[✓] Setting CPU_ONLY=true${NC}"
-            export CPU_ONLY=true
-            ;;
-        * )
-            echo -e "${RED}${BOLD}[✗] Exiting as CUDA ${REQUIRED_CUDA_VERSION} is not supported${NC}"
-            exit 1
-            ;;
-    esac
+    # Fallback to a safe version if detection fails
+    compatible_version="12.6"
+    echo -e "${YELLOW}${BOLD}[!] Could not determine driver version, defaulting to CUDA ${compatible_version}${NC}"
+    return 0
 }
 
 install_cuda_toolkit() {
-    if [ "$CUDA_COMPATIBLE" = false ]; then
-        echo -e "${RED}${BOLD}[✗] Cannot install CUDA ${REQUIRED_CUDA_VERSION} as your system is not compatible${NC}"
-        return 1
-    fi
+    echo -e "\n${CYAN}${BOLD}[✓] Installing CUDA Toolkit...${NC}"
     
-    echo -e "\n${CYAN}${BOLD}[✓] Installing CUDA ${REQUIRED_CUDA_VERSION} Toolkit...${NC}"
+    COMPATIBLE_CUDA_VERSION=""
+    determine_compatible_cuda
     
     local install_success=false
+    
+    # Try method 1: Using apt repository
     install_cuda_apt_repo
     if [ $? -eq 0 ]; then
         install_success=true
@@ -299,14 +308,15 @@ install_cuda_toolkit() {
     
     if [ "$install_success" = false ]; then
         echo -e "${RED}${BOLD}[✗] All CUDA installation methods failed${NC}"
-        show_cpu_option
+        echo -e "${YELLOW}${BOLD}[!] Proceeding with CPU-only mode${NC}"
+        CPU_ONLY="true"
         return 1
     fi
     
     setup_cuda_env
     detect_cuda
+    verify_cuda_installation
     
-    echo -e "${GREEN}${BOLD}[✓] CUDA ${REQUIRED_CUDA_VERSION} installed successfully${NC}"
     return 0
 }
 
@@ -366,34 +376,51 @@ install_cuda_apt_repo() {
     echo -e "${CYAN}${BOLD}[✓] Updating package lists...${NC}"
     apt-get update -qq
     
-    echo -e "${CYAN}${BOLD}[✓] Installing CUDA ${REQUIRED_CUDA_VERSION} packages...${NC}"
+    echo -e "${CYAN}${BOLD}[✓] Installing CUDA packages...${NC}"
     
-    local major_version=$(echo $REQUIRED_CUDA_VERSION | cut -d '.' -f 1)
-    local minor_version=$(echo $REQUIRED_CUDA_VERSION | cut -d '.' -f 2)
-    
-    apt-get install -y cuda-toolkit-${major_version}-${minor_version} || 
-    apt-get install -y cuda-${major_version}-${minor_version} ||
-    apt-get install -y cuda || {
-        echo -e "${RED}${BOLD}[✗] Failed to install CUDA packages${NC}"
-        rm -f "$keyring_file"
-        return 1
-    }
+    # Try to install the specific CUDA version based on driver support
+    if [ -n "$DRIVER_CUDA_VERSION" ]; then
+        local major_version=$(echo $DRIVER_CUDA_VERSION | cut -d '.' -f 1)
+        local minor_version=$(echo $DRIVER_CUDA_VERSION | cut -d '.' -f 2)
+        
+        # Try specific version first, then fall back to more generic versions
+        apt-get install -y cuda-toolkit-${major_version}-${minor_version} || 
+        apt-get install -y cuda-toolkit-${major_version} ||
+        apt-get install -y cuda || {
+            echo -e "${RED}${BOLD}[✗] Failed to install CUDA packages${NC}"
+            rm -f "$keyring_file"
+            return 1
+        }
+    else
+        # Try generic installation
+        apt-get install -y cuda || {
+            echo -e "${RED}${BOLD}[✗] Failed to install CUDA packages${NC}"
+            rm -f "$keyring_file"
+            return 1
+        }
+    fi
     
     rm -f "$keyring_file"
-    echo -e "${GREEN}${BOLD}[✓] CUDA ${REQUIRED_CUDA_VERSION} installed via repository method!${NC}"
+    echo -e "${GREEN}${BOLD}[✓] CUDA installed via repository method!${NC}"
     return 0
 }
 
 install_cuda_local_package() {
-    echo -e "\n${CYAN}${BOLD}[✓] Installing CUDA ${REQUIRED_CUDA_VERSION} using local package method...${NC}"
+    echo -e "\n${CYAN}${BOLD}[✓] Installing CUDA using local package method...${NC}"
     
     local pin_file=""
     local pin_url=""
     local deb_file=""
     local deb_url=""
+    local cuda_version="12.6"
     
-    local major_version=$(echo $REQUIRED_CUDA_VERSION | cut -d '.' -f 1)
-    local minor_version=$(echo $REQUIRED_CUDA_VERSION | cut -d '.' -f 2)
+
+    if [ -n "$DRIVER_CUDA_VERSION" ]; then
+        cuda_version=$DRIVER_CUDA_VERSION
+    fi
+    
+    local major_version=$(echo $cuda_version | cut -d '.' -f 1)
+    local minor_version=$(echo $cuda_version | cut -d '.' -f 2)
     
     if [ "$IS_WSL" = true ]; then
         pin_file="cuda-wsl-ubuntu.pin"
@@ -457,8 +484,7 @@ install_cuda_local_package() {
     echo -e "${CYAN}${BOLD}[✓] Updating package lists...${NC}"
     apt-get update -qq
     
-    echo -e "${CYAN}${BOLD}[✓] Installing CUDA ${REQUIRED_CUDA_VERSION} Toolkit...${NC}"
-    apt-get install -y cuda-${major_version}-${minor_version} || 
+    echo -e "${CYAN}${BOLD}[✓] Installing CUDA Toolkit...${NC}"
     apt-get install -y cuda || {
         echo -e "${RED}${BOLD}[✗] Failed to install CUDA${NC}"
         rm -f "$pin_file" "$deb_file"
@@ -466,40 +492,90 @@ install_cuda_local_package() {
     }
     
     rm -f "$pin_file" "$deb_file"
-    echo -e "${GREEN}${BOLD}[✓] CUDA ${REQUIRED_CUDA_VERSION} installed via local package method!${NC}"
+    echo -e "${GREEN}${BOLD}[✓] CUDA installed via local package method!${NC}"
     return 0
 }
 
-main() { 
+verify_cuda_installation() {
+    echo -e "\n${CYAN}${BOLD}[✓] Verifying CUDA installation...${NC}"
+    
+    if command -v nvcc &> /dev/null; then
+        NVCC_VERSION=$(nvcc --version | grep -oP 'release \K[0-9.]+' | head -1)
+        echo -e "${GREEN}${BOLD}[✓] NVCC compiler detected (version $NVCC_VERSION)${NC}"
+        
+        if [ "$IS_RENTED_SERVER" = true ] || [ "$IS_WSL" = true ]; then
+            echo -e "${YELLOW}${BOLD}[!] Skipping CUDA test on rented/WSL environment${NC}"
+            return 0
+        fi
+        
+        if [ "$GPU_AVAILABLE" = true ] && command -v nvidia-smi &> /dev/null; then
+            TEMP_DIR=$(mktemp -d)
+            cd "$TEMP_DIR"
+            
+            echo -e "${CYAN}${BOLD}[✓] Running a simple CUDA test...${NC}"
+            cat > cuda_test.cu << 'EOL'
+#include <stdio.h>
+
+__global__ void testKernel() {
+    printf("GPU kernel executed successfully!\n");
+}
+
+int main() {
+    printf("Testing CUDA setup...\n");
+    testKernel<<<1, 1>>>();
+    cudaDeviceSynchronize();
+    printf("CUDA test complete!\n");
+    return 0;
+}
+EOL
+            
+            if nvcc cuda_test.cu -o cuda_test &>/dev/null; then
+                echo -e "${GREEN}${BOLD}[✓] CUDA test compiled successfully${NC}"
+                if ./cuda_test 2>/dev/null; then
+                    echo -e "${GREEN}${BOLD}[✓] CUDA test executed successfully${NC}"
+                else
+                    echo -e "${YELLOW}${BOLD}[!] CUDA test execution failed, but compilation was successful${NC}"
+                fi
+            else
+                echo -e "${YELLOW}${BOLD}[!] CUDA test compilation failed${NC}"
+            fi
+            
+            rm -rf "$TEMP_DIR"
+        fi
+    else
+        echo -e "${YELLOW}${BOLD}[!] NVCC compiler not detected in PATH${NC}"
+        return 1
+    fi
+    
+    return 0
+}
+
+check_cuda_installation() {
+    echo -e "\n${CYAN}${BOLD}[✓] Checking CUDA installation status...${NC}"
+    
     detect_environment
     detect_gpu
     detect_cuda
     
-    if [ "$CUDA_INSTALLED" = true ] && [ -n "$CUDA_VERSION" ]; then
-        if [ "$CUDA_VERSION" = "$REQUIRED_CUDA_VERSION" ]; then
-            echo -e "${GREEN}${BOLD}[✓] CUDA ${REQUIRED_CUDA_VERSION} is already installed!${NC}"
-            check_cuda_path
-            CPU_ONLY="false"
-            return 0
-        else
-            echo -e "${YELLOW}${BOLD}[!] CUDA ${CUDA_VERSION} is installed, but CUDA ${REQUIRED_CUDA_VERSION} is required${NC}"
+    if [ "$CUDA_INSTALLED" = true ] && command -v nvcc &> /dev/null; then
+        echo -e "${GREEN}${BOLD}[✓] CUDA is properly installed and available${NC}"
+        if ! check_cuda_path; then
+            :
         fi
-    fi
-    
-    if [ "$GPU_AVAILABLE" = true ]; then
-        check_cuda_compatibility
-        if [ "$CUDA_COMPATIBLE" = true ] && [ "$CPU_ONLY" = "false" ]; then
-            install_cuda_toolkit
-        fi
+        CPU_ONLY="false"
+    elif [ "$GPU_AVAILABLE" = true ]; then
+        echo -e "${YELLOW}${BOLD}[!] NVIDIA GPU detected but CUDA environment not fully configured${NC}"
+        echo -e "${CYAN}${BOLD}[✓] Installing and configuring CUDA automatically...${NC}"
+        install_cuda_toolkit
     else
-        show_cpu_option
+        echo -e "${YELLOW}${BOLD}[!] No NVIDIA GPU detected - using CPU-only mode${NC}"
+        CPU_ONLY="true"
     fi
     
     if [ "$CPU_ONLY" = "true" ]; then
         echo -e "\n${YELLOW}${BOLD}[✓] Running in CPU-only mode${NC}"
-        export CPU_ONLY=true
     else
-        echo -e "\n${GREEN}${BOLD}[✓] Running with GPU acceleration using CUDA ${REQUIRED_CUDA_VERSION}${NC}"
+        echo -e "\n${GREEN}${BOLD}[✓] Running with GPU acceleration${NC}"
         
         if command -v nvidia-smi &> /dev/null; then
             echo -e "${CYAN}${BOLD}[✓] GPU information:${NC}"
@@ -507,7 +583,8 @@ main() {
         fi
     fi
     
+    export CPU_ONLY
     return 0
 }
 
-main
+check_cuda_installation
