@@ -86,7 +86,7 @@ git clone https://github.com/gensyn-ai/rl-swarm.git && cd rl-swarm
 6. **Run the swarm**
 ```
 python3 -m venv .venv
-source .venv/bin/activate
+. .venv/bin/activate
 ./run_rl_swarm.sh
 ```
 
@@ -181,5 +181,5 @@ nano $(python3 -c "import hivemind.p2p.p2p_daemon as m; print(m.__file__)")
 - Save this changes, first use `Ctrl` + `X` and then press `Y` and then press `Enter`
 - Now use this command again to run `rl-swarm`
 ```bash
-./run_rl_swarm.sh
+python3 -m venv .venv && . .venv/bin/activate && ./run_rl_swarm.sh
 ```
