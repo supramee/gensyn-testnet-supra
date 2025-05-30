@@ -69,20 +69,56 @@ apt update && apt install -y sudo
 ```
 2. **Install other dependencies**
 ```bash
-sudo apt update && sudo apt install -y python3 python3-venv python3-pip curl wget screen git lsof nano unzip iproute2
+sudo apt update && sudo apt install -y python3 python3-venv python3-pip curl wget screen git lsof nano unzip iproute2 build-essential gcc g++
 ```
-3. **Install Node.js and npm**  
-```bash
-curl -sSL https://raw.githubusercontent.com/zunxbt/installation/main/node.sh | bash
+3. **Install CUDA**
+```
+[ -f cuda.sh ] && rm cuda.sh; curl -o cuda.sh https://raw.githubusercontent.com/zunxbt/gensyn-testnet/main/cuda.sh && chmod +x cuda.sh && . ./cuda.sh
 ```
 4. **Create a `screen` session**
 ```bash
 screen -S gensyn
 ```
-5. **Run the swarm**
-```bash
-cd $HOME && rm -rf gensyn-testnet && git clone https://github.com/zunxbt/gensyn-testnet.git && chmod +x gensyn-testnet/gensyn.sh && ./gensyn-testnet/gensyn.sh
+5. **Clone official `rl-swarm` repo**
 ```
+git clone https://github.com/gensyn-ai/rl-swarm.git && cd rl-swarm
+```
+6. **Run the swarm**
+```
+python3 -m venv .venv
+source .venv/bin/activate
+./run_rl_swarm.sh
+```
+
+![image](https://github.com/user-attachments/assets/40d07439-ffd1-4207-9e51-fabc3fdbb8aa)
+
+- After sometimes, u will see something like this if your running it on Linux system, so here follow the next step
+
+7. **Tunnel the `localhost` link**
+- There are multiple way to do this - localtunnel / ngrok / cloudflared, in this guide, I will use localtunnel
+- Here, keep the rl-swarm running in one tab, and open the GPU/VPS/WSL again in another tab
+- Use the below command in the new terminal
+```
+npm install -g localtunnel
+```
+- Now use this command to get the password of this website
+```
+curl https://loca.lt/mytunnelpassword
+```
+- Or simply your password is your VPS IP
+- Then use this command to get the wesbite link
+```
+lt --port 3000
+```
+- You will get a link like this `https://true-things-cry.loca.lt`
+
+![Screenshot 2025-05-30 062534](https://github.com/user-attachments/assets/92177227-51a3-46cd-b998-15ac2be59035)
+
+
+- Visit the website and enter the password to access it
+- Sign In using email address and then paste OTP
+- Now comeback to your main terminal and you see logs started to progress
+---
 - It will ask some questions, you should send response properly
 - ```Would you like to push models you train in the RL swarm to the Hugging Face Hub? [y/N]``` : Write `N`
 - When you will see interface like this, you can detach from this screen session
