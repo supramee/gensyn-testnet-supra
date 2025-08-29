@@ -136,7 +136,7 @@ After running the Gensyn node, it is essential to back up the swarm.pem file fro
 ```
 [ -f backup.sh ] && rm backup.sh; curl -sSL -O https://raw.githubusercontent.com/zunxbt/gensyn-testnet/main/backup.sh && chmod +x backup.sh && ./backup.sh
 ```
-- It will show something like this in your terminal
+- It will show something like this in your terminal.
  
 ![image](https://github.com/user-attachments/assets/489b02a8-40e1-4c91-b29b-9d9c30604e8c)
 
