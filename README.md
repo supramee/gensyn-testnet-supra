@@ -101,7 +101,7 @@ python3 -m venv .venv
 ```
 npm install -g localtunnel
 ```
-- Now use this command to get the password of this website
+- Now use this command to get the password of this website.
 ```
 curl https://loca.lt/mytunnelpassword
 ```
