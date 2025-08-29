@@ -92,7 +92,7 @@ python3 -m venv .venv
 
 ![image](https://github.com/user-attachments/assets/40d07439-ffd1-4207-9e51-fabc3fdbb8aa)
 
-- After sometimes, u will see something like this if your running it on Linux system, so here follow the next step
+- After sometimes, u will see something like this if your running it on Linux system, so here follow the next step.
 
 7. **Tunnel the `localhost` link**
 - There are multiple way to do this - localtunnel / ngrok / cloudflared, in this guide, I will use localtunnel
