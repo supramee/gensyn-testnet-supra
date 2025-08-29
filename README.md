@@ -1,6 +1,6 @@
 <h2 align=center>Gensyn Testnet Node Guide</h2>
 
-## 💻 System Requirements
+## 💻 System Requirements.
 
 | Requirement                         | Details                                                     |
 |-------------------------------------|-------------------------------------------------------------|
