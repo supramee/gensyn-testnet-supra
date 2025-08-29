@@ -61,7 +61,7 @@ ssh -p 69 root@69.69.69.69
 ```
 - Now paste this command on this terminal to access your GPU server
 
-## 📥 Installation
+## 📥 Installation.
 
 1. **Install `sudo`**
 ```bash
