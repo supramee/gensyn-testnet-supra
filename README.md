@@ -169,7 +169,7 @@ screen -r gensyn
 > [!Note]
 > If you see `0x0000000000000000000000000000000000000000` in `Connected EOA Address` section, that means your contribution is not being recorded, so you should run the node from beginning with fresh new email (means u need to delete existing `swarm.pem` file
 
-## ⚠️ Troubleshooting
+## ⚠️ Troubleshooting,
 
 ### 🔴 Daemon failed to start in 15.0 seconds
 - If you are facing this issue then follow this step by step guide
