@@ -7,7 +7,7 @@
 | **CPU Architecture**                | `arm64` or `amd64`                                          |
 | **Recommended RAM**                 | 24 GB                                                       |
 | **CUDA Devices (Recommended)**      | `RTX 3090`, `RTX 4070`, `RTX 4090`, `A100`, `H100`          |
-| **Python Version**                  | Python >= 3.10 (For Mac, you may need to upgrade)           |
+| **Python Version**                  | Python >= 3.10 (For Mac, you may need to upgrade)           /
 
 
 ## 🌐 Rent GPU.
